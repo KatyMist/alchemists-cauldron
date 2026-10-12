@@ -1,6 +1,7 @@
 import type {
   Difficulty,
   GameOverReason,
+  IActionResult,
   IBrewResult,
   IDifficultySettings,
   IGameState,
@@ -9,7 +10,8 @@ import type {
 } from '../types/game';
 import { INGREDIENTS } from '../data/ingredients';
 import { checkBrew } from '../logic/brew-check';
-import { calculateCauldron } from '../logic/calculate-cauldron';
+import { addIngredient } from '../logic/cauldron';
+import { calculateWithReactions, findFiredReactions } from '../logic/reactions';
 import { pickRecipe } from '../logic/recipe-generator';
 import { createStock, isShelfEmpty } from '../logic/stock';
 import { addTimeBonus, getTimeLeft, MS_IN_SECOND } from '../logic/timer';
@@ -30,6 +32,7 @@ export function createMenuState(difficulty: Difficulty): IGameState {
     cauldronIngredients: [],
     shelfStock: {},
     gameOverReason: null,
+    lastReactionId: null,
   };
 }
 
@@ -51,6 +54,7 @@ export function createNewGameState(
     cauldronIngredients: [],
     shelfStock: createStock(getShelfIngredients(settings)),
     gameOverReason: null,
+    lastReactionId: null,
   };
 }
 
@@ -106,9 +110,13 @@ export function brewPotion(
     return { state: timedState, isSuccess: false };
   }
 
-  const values = calculateCauldron(timedState.cauldronIngredients);
+  const values = calculateWithReactions(timedState.cauldronIngredients, timedState.difficulty);
   const isSuccess = checkBrew(values, timedState.activeRecipe, settings.tolerance);
-  const clearedState: IGameState = { ...timedState, cauldronIngredients: [] };
+  const clearedState: IGameState = {
+    ...timedState,
+    cauldronIngredients: [],
+    lastReactionId: null,
+  };
   let nextState: IGameState;
 
   if (isSuccess) {
@@ -152,5 +160,86 @@ export function restoreGameState(save: ISaveData): IGameState {
     cauldronIngredients: save.cauldronIngredients,
     shelfStock: save.shelfStock,
     gameOverReason: null,
+    lastReactionId: null,
   };
+}
+
+export const POUR_OUT_PENALTY_S = 10;
+
+function removeTime(state: IGameState, seconds: number, now: number): IGameState {
+  const timeLeft = Math.max(0, state.timeLeft - seconds * MS_IN_SECOND);
+  return { ...state, timeLeft, endTime: now + timeLeft };
+}
+
+function checkGameOver(state: IGameState): IGameState {
+  if (state.lives <= 0) {
+    return endGame(state, 'lives');
+  }
+
+  if (state.timeLeft <= 0) {
+    return endGame(state, 'time');
+  }
+
+  if (state.cauldronIngredients.length === 0 && isShelfEmpty(state.shelfStock)) {
+    return endGame(state, 'ingredients');
+  }
+
+  return state;
+}
+
+export function addToCauldron(
+  state: IGameState,
+  ingredientId: string,
+  settings: IDifficultySettings,
+  now: number,
+): IActionResult {
+  const timedState = updateTime(state, now);
+  const added = addIngredient(timedState, ingredientId, settings);
+
+  if (added === timedState) {
+    return { state: timedState, fired: [] };
+  }
+
+  const fired = findFiredReactions(
+    timedState.cauldronIngredients,
+    added.cauldronIngredients,
+    added.difficulty,
+  );
+
+  const nextState = fired.reduce<IGameState>((current, reaction) => {
+    const effects = reaction.onFire ?? {};
+    let updated: IGameState = { ...current, lastReactionId: reaction.id };
+
+    if (effects.timePenalty !== undefined) {
+      updated = removeTime(updated, effects.timePenalty, now);
+    }
+
+    if (effects.lifePenalty !== undefined) {
+      updated = { ...updated, lives: updated.lives - effects.lifePenalty };
+    }
+
+    if (effects.clearCauldron === true) {
+      updated = { ...updated, cauldronIngredients: [] };
+    }
+
+    return updated;
+  }, added);
+
+  return { state: checkGameOver(nextState), fired };
+}
+
+export function pourOut(state: IGameState, now: number): IGameState {
+  const timedState = updateTime(state, now);
+
+  if (timedState.status !== 'playing' || timedState.cauldronIngredients.length === 0) {
+    return timedState;
+  }
+
+  const poured = removeTime(
+    { ...timedState, cauldronIngredients: [], lastReactionId: null },
+    POUR_OUT_PENALTY_S,
+    now,
+  );
+
+  return checkGameOver(poured);
 }

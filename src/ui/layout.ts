@@ -48,6 +48,12 @@ export interface ILayout {
   helpTolerance: HTMLElement;
   helpScore: HTMLElement;
   helpBonus: HTMLElement;
+  helpReactions: HTMLElement;
+  frame: HTMLElement;
+  cauldronFloating: HTMLElement;
+  floatText: HTMLElement;
+  pourOutButton: HTMLButtonElement;
+  tooltip: HTMLElement;
 }
 
 const SVG = 'viewBox="0 0 32 32" aria-hidden="true" focusable="false"';
@@ -210,6 +216,7 @@ const LAYOUT_TEMPLATE = `
       </div>
     </header>
 
+    <div class="tooltip" data-tooltip role="tooltip" hidden></div>
     <h1 class="title"><span class="title__text">Alchemist's Cauldron</span><span class="title__gem" aria-hidden="true"></span></h1>
 
     <main class="game" data-game>
@@ -220,7 +227,12 @@ const LAYOUT_TEMPLATE = `
 
       <section class="cauldron-area" aria-label="Cauldron">
         <div class="cauldron cauldron--empty" data-cauldron>
-          ${CAULDRON_SVG}
+          <div class="cauldron__stage">
+            ${CAULDRON_SVG}
+            <div class="cauldron__floating" data-cauldron-floating aria-hidden="true"></div>
+            <span class="cauldron__burst" aria-hidden="true"></span>
+            <span class="cauldron__float-text" data-float-text aria-hidden="true"></span>
+          </div>
           <p class="message" data-message role="status" aria-live="polite"></p>
         </div>
         <ol class="cauldron__list" data-cauldron-list aria-label="Ingredients in the cauldron"></ol>
@@ -262,6 +274,7 @@ const LAYOUT_TEMPLATE = `
         <button class="brew-button" type="button" data-start><span class="brew-button__text">Start Game</span></button>
         <button class="small-button" type="button" data-continue>Continue Game</button>
         <button class="brew-button" type="button" data-brew><span class="brew-button__text">Brew</span></button>
+        <button class="small-button" type="button" data-pour-out>Pour Out <small>−10 s</small></button>
         <button class="small-button" type="button" data-pause>Pause</button>
         <span class="difficulty-badge" data-difficulty-badge>Medium</span>
       </div>
@@ -280,7 +293,11 @@ const LAYOUT_TEMPLATE = `
       <li>Every ingredient changes <b>Temperature</b>, <b>Density</b> and <b>Magic Power</b>.</li>
       <li>Move all 3 markers into the green zones and press <b>Brew</b>. The check allows ±<span data-help-tolerance>8</span>.</li>
       <li>Success: +<span data-help-score>200</span> score, +<span data-help-bonus>10</span> s and a new recipe. Failure: −1 life.</li>
+      <li>Hover an ingredient to see its numbers. Click it or drag it into the cauldron.</li>
+      <li><b>Pour Out</b> empties the cauldron for −10 s without losing a life.</li>
+      <li data-help-reactions-item>Reactions on this difficulty: <span data-help-reactions>none</span>.</li>
       <li>Choose Easy, Medium or Hard in <b>Settings</b> before the game starts.</li>
+      <li>Keys during play: <kbd>1</kbd>–<kbd>8</kbd> add an ingredient, <kbd>B</kbd> brew, <kbd>O</kbd> pour out, <kbd>P</kbd> or <kbd>Esc</kbd> pause.</li>
       <li>Ingredient stock is limited and never refilled.</li>
       <li>The game ends when time runs out, lives reach 0 or ingredients run out.</li>
     </ol>
@@ -420,5 +437,11 @@ export function createLayout(root: HTMLElement): ILayout {
     helpTolerance: requireElement(root, '[data-help-tolerance]', HTMLElement),
     helpScore: requireElement(root, '[data-help-score]', HTMLElement),
     helpBonus: requireElement(root, '[data-help-bonus]', HTMLElement),
+    helpReactions: requireElement(root, '[data-help-reactions]', HTMLElement),
+    frame: requireElement(root, '.frame', HTMLElement),
+    cauldronFloating: requireElement(root, '[data-cauldron-floating]', HTMLElement),
+    floatText: requireElement(root, '[data-float-text]', HTMLElement),
+    pourOutButton: requireElement(root, '[data-pour-out]', HTMLButtonElement),
+    tooltip: requireElement(root, '[data-tooltip]', HTMLElement),
   };
 }

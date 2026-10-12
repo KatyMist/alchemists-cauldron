@@ -1,15 +1,18 @@
 import './styles/style.css';
-import type { Difficulty, GameOverReason, IDifficultySettings } from './types/game';
+import type { Difficulty, GameOverReason, IDifficultySettings, IReaction } from './types/game';
 import { DIFFICULTY_LABELS, DIFFICULTY_SETTINGS } from './data/difficulty';
-import { addIngredient, isCauldronFull } from './logic/cauldron';
-import { calculateCauldron } from './logic/calculate-cauldron';
+import { isCauldronFull } from './logic/cauldron';
+import { calculateWithReactions, getReactions } from './logic/reactions';
 import { isValidPlayerName, normalizePlayerName } from './logic/player-name';
 import {
+  addToCauldron,
   brewPotion,
   createMenuState,
   createNewGameState,
   getShelfIngredients,
   pauseGame,
+  POUR_OUT_PENALTY_S,
+  pourOut,
   restoreGameState,
   resumeGame,
   updateTime,
@@ -30,7 +33,9 @@ import { renderHud, renderTimer } from './ui/hud';
 import { createLayout } from './ui/layout';
 import { renderLeaderboard } from './ui/leaderboard';
 import { renderRecipe } from './ui/recipe';
-import { renderShelf } from './ui/shelf';
+import { playFeedback } from './ui/feedback';
+import { DRAG_DATA_TYPE, renderShelf } from './ui/shelf';
+import { hideTooltip, showTooltip } from './ui/tooltip';
 
 const TICK_MS = 250;
 const SAVE_INTERVAL_MS = 1000;
@@ -78,7 +83,7 @@ function persist(): void {
   }
 }
 
-function showMessage(text: string, type: 'success' | 'fail'): void {
+function showMessage(text: string, type: 'success' | 'fail' | 'reaction'): void {
   layout.message.textContent = text;
   layout.message.className = 'message';
   layout.message.getBoundingClientRect();
@@ -95,6 +100,10 @@ function renderHelp(settings: IDifficultySettings): void {
   layout.helpTolerance.textContent = String(settings.tolerance);
   layout.helpScore.textContent = String(settings.scorePerBrew);
   layout.helpBonus.textContent = String(settings.timeBonus);
+  layout.helpReactions.textContent =
+    getReactions(state.difficulty)
+      .map((reaction) => `${reaction.name} (${reaction.description})`)
+      .join(', ') || 'none';
 }
 
 function renderMenu(): void {
@@ -121,17 +130,26 @@ function render(): void {
     stock: state.shelfStock,
     isBlocked: !isPlaying || isCauldronFull(state, settings),
     onAdd: handleAdd,
+    onShowTooltip: (card, ingredient) => {
+      if (state.status === 'playing') {
+        showTooltip(layout.tooltip, card, ingredient);
+      }
+    },
+    onHideTooltip: () => {
+      hideTooltip(layout.tooltip);
+    },
   });
   renderCauldron(
     layout.cauldron,
     layout.cauldronList,
+    layout.cauldronFloating,
     state.cauldronIngredients,
     settings.maxCauldronIngredients,
   );
   renderRecipe(layout, state, settings);
   updateBars(
     bars,
-    calculateCauldron(state.cauldronIngredients),
+    calculateWithReactions(state.cauldronIngredients, state.difficulty),
     state.activeRecipe,
     settings.tolerance,
   );
@@ -143,10 +161,16 @@ function render(): void {
     state.status === 'game-over' ? 'Play again' : 'Start Game';
   layout.brewButton.hidden = !running;
   layout.pauseButton.hidden = !running;
+  layout.pourOutButton.hidden = !running;
+  layout.pourOutButton.disabled = !isPlaying || state.cauldronIngredients.length === 0;
   layout.brewButton.disabled = !isPlaying || state.cauldronIngredients.length === 0;
   layout.pauseButton.disabled = !isPlaying;
   layout.difficultyBadge.textContent = DIFFICULTY_LABELS[state.difficulty];
   layout.game.classList.toggle('game--paused', state.status === 'paused');
+
+  if (!isPlaying) {
+    hideTooltip(layout.tooltip);
+  }
 
   persist();
 }
@@ -254,18 +278,136 @@ function resume(): void {
   render();
 }
 
+function announceReactions(fired: readonly IReaction[]): void {
+  const headline = fired.find((reaction) => reaction.onFire !== undefined) ?? fired.at(-1);
+
+  if (headline === undefined) {
+    return;
+  }
+
+  const others = fired.filter((reaction) => reaction !== headline).map((reaction) => reaction.name);
+  const extra = others.length > 0 ? ` (+ ${others.join(', ')})` : '';
+
+  showMessage(`${headline.name}! ${headline.description}${extra}`, 'reaction');
+  playFeedback(layout.cauldron, layout.frame, layout.floatText, 'reaction', headline.name);
+}
+
 function handleAdd(ingredientId: string): void {
   if (state.status !== 'playing') {
     return;
   }
 
-  state = addIngredient(state, ingredientId, getSettings());
+  const result = addToCauldron(state, ingredientId, getSettings(), Date.now());
+  state = result.state;
   render();
+  announceReactions(result.fired);
+
+  if (state.status === 'game-over') {
+    showGameOver();
+    return;
+  }
 
   const card = layout.shelf.querySelector<HTMLButtonElement>(`[data-id="${ingredientId}"]`);
 
   if (card && !card.disabled) {
     card.focus();
+  }
+}
+
+function handlePourOut(): void {
+  if (state.status !== 'playing' || state.cauldronIngredients.length === 0) {
+    return;
+  }
+
+  state = pourOut(state, Date.now());
+  showMessage(`Poured out. \u2212${String(POUR_OUT_PENALTY_S)} s`, 'fail');
+  render();
+
+  if (state.status === 'game-over') {
+    showGameOver();
+  }
+}
+
+function canDrop(): boolean {
+  return state.status === 'playing' && !isCauldronFull(state, getSettings());
+}
+
+function bindDragAndDrop(): void {
+  const dropZone = layout.cauldron;
+
+  dropZone.addEventListener('dragover', (event) => {
+    if (!canDrop()) {
+      return;
+    }
+
+    event.preventDefault();
+    dropZone.classList.add('cauldron--drop');
+  });
+  dropZone.addEventListener('dragleave', (event) => {
+    if (!(event.relatedTarget instanceof Node) || !dropZone.contains(event.relatedTarget)) {
+      dropZone.classList.remove('cauldron--drop');
+    }
+  });
+  dropZone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    dropZone.classList.remove('cauldron--drop');
+    const ingredientId = event.dataTransfer?.getData(DRAG_DATA_TYPE) ?? '';
+
+    if (ingredientId !== '' && canDrop()) {
+      handleAdd(ingredientId);
+    }
+  });
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
+}
+
+function handleKeydown(event: KeyboardEvent): void {
+  if (
+    state.status !== 'playing' ||
+    event.repeat ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    isTypingTarget(event.target) ||
+    document.querySelector('dialog[open]') !== null
+  ) {
+    return;
+  }
+
+  const key = event.key.toLowerCase();
+  const ingredientIndex = Number(key) - 1;
+  const ingredient = getShelfIngredients(getSettings())[ingredientIndex];
+
+  if (/^[1-8]$/.test(key)) {
+    if (ingredient) {
+      event.preventDefault();
+      handleAdd(ingredient.id);
+    }
+    return;
+  }
+
+  switch (key) {
+    case 'b':
+      event.preventDefault();
+      handleBrew();
+      break;
+    case 'o':
+      event.preventDefault();
+      handlePourOut();
+      break;
+    case 'p':
+    case 'escape':
+      event.preventDefault();
+      pause();
+      break;
+    default:
+      break;
   }
 }
 
@@ -280,13 +422,21 @@ function handleBrew(): void {
   const result = brewPotion(state, settings, Date.now());
   state = result.state;
 
+  render();
+
   if (result.isSuccess) {
     showMessage(`Potion brewed! +${String(settings.scorePerBrew)} score`, 'success');
+    playFeedback(
+      layout.cauldron,
+      layout.frame,
+      layout.floatText,
+      'success',
+      `+${String(settings.timeBonus)}s`,
+    );
   } else {
     showMessage('The potion failed. −1 life', 'fail');
+    playFeedback(layout.cauldron, layout.frame, layout.floatText, 'fail', '−1 ♥');
   }
-
-  render();
 
   if (state.status === 'game-over') {
     showGameOver();
@@ -335,6 +485,9 @@ function bindEvents(): void {
   layout.startButton.addEventListener('click', startGame);
   layout.brewButton.addEventListener('click', handleBrew);
   layout.pauseButton.addEventListener('click', pause);
+  layout.pourOutButton.addEventListener('click', handlePourOut);
+  document.addEventListener('keydown', handleKeydown);
+  bindDragAndDrop();
   layout.continueButtons.forEach((button) => {
     button.addEventListener('click', continueGame);
   });
