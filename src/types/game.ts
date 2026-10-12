@@ -66,6 +66,7 @@ export interface IGameState {
   cauldronIngredients: IIngredient[];
   shelfStock: ShelfStock;
   gameOverReason: GameOverReason | null;
+  lastReactionId: string | null;
 }
 
 export interface IBrewResult {
@@ -77,4 +78,37 @@ export interface ILeaderboardEntry {
   name: string;
   score: number;
   date: number;
+  difficulty: Difficulty;
+}
+
+export interface ISaveData {
+  difficulty: Difficulty;
+  score: number;
+  timeLeft: number;
+  lives: number;
+  activeRecipe: IRecipe | null;
+  cauldronIngredients: IIngredient[];
+  shelfStock: ShelfStock;
+  status: 'playing' | 'paused';
+}
+
+export interface IReactionEffects {
+  timePenalty?: number;
+  lifePenalty?: number;
+  clearCauldron?: boolean;
+}
+
+export interface IReaction {
+  id: string;
+  name: string;
+  difficulty: Exclude<Difficulty, 'easy'>;
+  description: string;
+  isActive: (ingredients: readonly IIngredient[]) => boolean;
+  apply: (values: ICauldronValues) => ICauldronValues;
+  onFire?: IReactionEffects;
+}
+
+export interface IActionResult {
+  state: IGameState;
+  fired: readonly IReaction[];
 }
