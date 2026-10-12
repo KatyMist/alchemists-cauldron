@@ -34,3 +34,15 @@ export const DIFFICULTY_SETTINGS: Readonly<Record<Difficulty, IDifficultySetting
 };
 
 export const DEFAULT_DIFFICULTY: Difficulty = 'medium';
+
+export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
+
+export const DIFFICULTY_LABELS: Readonly<Record<Difficulty, string>> = {
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
+};
+
+export function isDifficulty(value: unknown): value is Difficulty {
+  return value === 'easy' || value === 'medium' || value === 'hard';
+}
