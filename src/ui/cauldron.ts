@@ -3,7 +3,8 @@ import { createElement } from './dom';
 import { createIcon } from './icons';
 
 export function renderCauldron(
-  container: HTMLElement,
+  cauldron: HTMLElement,
+  list: HTMLElement,
   ingredients: readonly IIngredient[],
   capacity: number,
 ): void {
@@ -15,6 +16,7 @@ export function renderCauldron(
 
     if (ingredient) {
       item.classList.add('cauldron__slot--filled', `ingredient--${ingredient.id}`);
+      item.title = ingredient.name;
       item.append(
         createIcon(ingredient.icon, 'cauldron__icon'),
         createElement('span', 'cauldron__name', ingredient.name),
@@ -26,5 +28,6 @@ export function renderCauldron(
     items.push(item);
   }
 
-  container.replaceChildren(...items);
+  list.replaceChildren(...items);
+  cauldron.classList.toggle('cauldron--empty', ingredients.length === 0);
 }

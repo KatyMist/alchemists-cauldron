@@ -1,13 +1,13 @@
 import type { ICauldronValues, IParameter, IRecipe, ParameterKey } from '../types/game';
-import { PARAMETER_KEYS, PARAMETERS } from '../data/parameters';
+import { BAR_TICK_COUNT, PARAMETER_KEYS, PARAMETERS } from '../data/parameters';
 import { expandRange, getParameterStatus } from '../logic/brew-check';
 import { createElement } from './dom';
-import { formatRange, formatSigned } from './format';
+import { formatSigned, formatValue } from './format';
+import { UI_ICONS } from './layout';
 
 interface IBarElements {
   root: HTMLElement;
   value: HTMLElement;
-  target: HTMLElement;
   zone: HTMLElement;
   toleranceZone: HTMLElement;
   fill: HTMLElement;
@@ -15,6 +15,12 @@ interface IBarElements {
 }
 
 export type BarsView = Record<ParameterKey, IBarElements>;
+
+const BAR_ICONS: Readonly<Record<ParameterKey, string>> = {
+  temperature: UI_ICONS.thermometer,
+  density: UI_ICONS.drop,
+  magicPower: UI_ICONS.star,
+};
 
 function toPercent(value: number, parameter: IParameter): number {
   const clamped = Math.min(Math.max(value, parameter.min), parameter.max);
@@ -26,11 +32,28 @@ function setSpan(element: HTMLElement, from: number, to: number): void {
   element.style.width = `${String(Math.abs(to - from))}%`;
 }
 
+function createTicks(parameter: IParameter): HTMLElement {
+  const ticks = createElement('div', 'bar__ticks');
+  const step = (parameter.max - parameter.min) / (BAR_TICK_COUNT - 1);
+
+  for (let index = 0; index < BAR_TICK_COUNT; index += 1) {
+    const value = parameter.min + step * index;
+    const tick = createElement('span', 'bar__tick', formatValue(value));
+    tick.style.left = `${String(toPercent(value, parameter))}%`;
+    ticks.append(tick);
+  }
+
+  return ticks;
+}
+
 function createBar(parameter: IParameter): IBarElements {
   const root = createElement('div', `bar bar--${parameter.key}`);
+  const icon = createElement('span', 'bar__icon');
+  icon.innerHTML = BAR_ICONS[parameter.key];
+
+  const body = createElement('div', 'bar__body');
   const header = createElement('div', 'bar__header');
   const value = createElement('span', 'bar__value', '0');
-  const target = createElement('span', 'bar__target', '');
   const track = createElement('div', 'bar__track');
   const toleranceZone = createElement('span', 'bar__zone bar__zone--tolerance');
   const zone = createElement('span', 'bar__zone');
@@ -38,7 +61,7 @@ function createBar(parameter: IParameter): IBarElements {
   const marker = createElement('span', 'bar__marker');
 
   header.append(createElement('span', 'bar__label', parameter.label), value);
-  track.append(toleranceZone, zone, fill, marker);
+  track.append(fill, toleranceZone, zone);
 
   if (parameter.min < 0) {
     const zero = createElement('span', 'bar__zero');
@@ -46,9 +69,11 @@ function createBar(parameter: IParameter): IBarElements {
     track.append(zero);
   }
 
-  root.append(header, track, target);
+  track.append(marker);
+  body.append(header, track, createTicks(parameter));
+  root.append(icon, body);
 
-  return { root, value, target, zone, toleranceZone, fill, marker };
+  return { root, value, zone, toleranceZone, fill, marker };
 }
 
 export function createBars(container: HTMLElement): BarsView {
@@ -78,13 +103,11 @@ export function updateBars(
     bar.value.textContent = formatSigned(value);
     setSpan(bar.fill, zeroPercent, valuePercent);
     bar.marker.style.left = `${String(valuePercent)}%`;
-
     bar.root.classList.remove('bar--match', 'bar--tolerance');
 
     if (recipe === null) {
       bar.zone.hidden = true;
       bar.toleranceZone.hidden = true;
-      bar.target.textContent = '';
       return;
     }
 
@@ -99,7 +122,6 @@ export function updateBars(
       toPercent(checkedRange.min, parameter),
       toPercent(checkedRange.max, parameter),
     );
-    bar.target.textContent = `Target ${formatRange(range)} (±${String(tolerance)})`;
 
     const status = getParameterStatus(value, range, tolerance);
 

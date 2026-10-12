@@ -1,8 +1,8 @@
 import type { IIngredient, ShelfStock } from '../types/game';
 import { getStock } from '../logic/stock';
 import { createElement } from './dom';
-import { formatSigned } from './format';
-import { createIcon } from './icons';
+import { formatValue } from './format';
+import { createBottle } from './icons';
 
 interface IShelfOptions {
   ingredients: readonly IIngredient[];
@@ -11,23 +11,21 @@ interface IShelfOptions {
   onAdd: (ingredientId: string) => void;
 }
 
-function createValues(ingredient: IIngredient): HTMLDListElement {
-  const list = createElement('dl', 'shelf-card__values');
-  const values: readonly [string, string, number][] = [
-    ['T', 'Temperature', ingredient.temperature],
-    ['D', 'Density', ingredient.density],
-    ['M', 'Magic Power', ingredient.magicPower],
+function createValues(ingredient: IIngredient): HTMLSpanElement {
+  const values = createElement('span', 'shelf-card__values');
+  const chips: readonly [string, string, string, number][] = [
+    ['T', 'temperature', 'Temperature', ingredient.temperature],
+    ['D', 'density', 'Density', ingredient.density],
+    ['MP', 'magic', 'Magic Power', ingredient.magicPower],
   ];
 
-  values.forEach(([short, full, value]) => {
-    const item = createElement('div', 'shelf-card__value');
-    const term = createElement('dt', 'shelf-card__value-name', short);
-    term.title = full;
-    item.append(term, createElement('dd', 'shelf-card__value-number', formatSigned(value)));
-    list.append(item);
+  chips.forEach(([short, modifier, full, value]) => {
+    const chip = createElement('span', `chip chip--${modifier}`, `${short}${formatValue(value)}`);
+    chip.title = `${full}: ${formatValue(value)}`;
+    values.append(chip);
   });
 
-  return list;
+  return values;
 }
 
 function createShelfCard(
@@ -47,18 +45,22 @@ function createShelfCard(
     card.disabled = true;
     card.tabIndex = -1;
     card.setAttribute('aria-label', `${ingredient.name}: out of stock`);
-    card.append(badge);
+    card.append(
+      createElement('span', 'shelf-card__bottle'),
+      createElement('span', 'shelf-card__info'),
+      badge,
+    );
     return card;
   }
 
+  const bottle = createBottle(ingredient.icon, 'shelf-card__bottle');
+
+  const info = createElement('span', 'shelf-card__info');
+  info.append(createElement('span', 'shelf-card__name', ingredient.name), createValues(ingredient));
+
   card.disabled = isBlocked;
   card.setAttribute('aria-label', `Add ${ingredient.name}, ${String(portions)} left`);
-  card.append(
-    badge,
-    createIcon(ingredient.icon, 'shelf-card__icon'),
-    createElement('span', 'shelf-card__name', ingredient.name),
-    createValues(ingredient),
-  );
+  card.append(bottle, info, badge);
   card.addEventListener('click', () => {
     onAdd(ingredient.id);
   });

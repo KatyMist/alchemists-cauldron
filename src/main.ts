@@ -77,7 +77,12 @@ function render(): void {
     isBlocked: !isPlaying || isCauldronFull(state, settings),
     onAdd: handleAdd,
   });
-  renderCauldron(layout.cauldronList, state.cauldronIngredients, settings.maxCauldronIngredients);
+  renderCauldron(
+    layout.cauldron,
+    layout.cauldronList,
+    state.cauldronIngredients,
+    settings.maxCauldronIngredients,
+  );
   renderRecipe(layout, state, settings);
   updateBars(
     bars,
@@ -87,12 +92,12 @@ function render(): void {
   );
 
   layout.startButton.hidden = isRunning;
-  layout.startButton.textContent = state.status === 'game-over' ? 'Play again' : 'Start Game';
+  requireElement(layout.startButton, '.brew-button__text', HTMLElement).textContent =
+    state.status === 'game-over' ? 'Play again' : 'Start Game';
   layout.brewButton.hidden = !isRunning;
   layout.pauseButton.hidden = !isRunning;
   layout.brewButton.disabled = !isPlaying || state.cauldronIngredients.length === 0;
   layout.pauseButton.disabled = !isPlaying;
-  layout.menuButton.hidden = isRunning;
   layout.game.classList.toggle('game--paused', state.status === 'paused');
 }
 
@@ -235,7 +240,22 @@ function bindEvents(): void {
   layout.brewButton.addEventListener('click', handleBrew);
   layout.pauseButton.addEventListener('click', pause);
   layout.menuButton.addEventListener('click', () => {
+    if (state.status === 'playing') {
+      state = pauseGame(state, Date.now());
+      render();
+    }
+
+    layout.resumeFromMenuButton.hidden = state.status !== 'paused';
     openDialog(layout.menuDialog);
+  });
+  layout.resumeFromMenuButton.addEventListener('click', () => {
+    closeDialog(layout.menuDialog);
+    resume();
+  });
+  layout.menuDialog.addEventListener('close', () => {
+    if (state.status === 'paused') {
+      openDialog(layout.pauseDialog);
+    }
   });
   layout.helpButton.addEventListener('click', () => {
     if (state.status === 'playing') {

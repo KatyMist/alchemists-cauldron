@@ -1,19 +1,17 @@
 import type { IRecipeRange } from '../types/game';
 
+const MINUS = '−';
+
+export function formatValue(value: number): string {
+  return value < 0 ? `${MINUS}${String(Math.abs(value))}` : String(value);
+}
+
 export function formatSigned(value: number): string {
-  if (value > 0) {
-    return `+${String(value)}`;
-  }
-
-  if (value < 0) {
-    return `−${String(Math.abs(value))}`;
-  }
-
-  return '0';
+  return value > 0 ? `+${String(value)}` : formatValue(value);
 }
 
 export function formatRange(range: IRecipeRange): string {
-  return `${String(range.min)}..${String(range.max)}`;
+  return `${formatValue(range.min)} – ${formatValue(range.max)}`;
 }
 
 function pad(value: number): string {
