@@ -77,4 +77,16 @@ export interface ILeaderboardEntry {
   name: string;
   score: number;
   date: number;
+  difficulty: Difficulty;
+}
+
+export interface ISaveData {
+  difficulty: Difficulty;
+  score: number;
+  timeLeft: number;
+  lives: number;
+  activeRecipe: IRecipe | null;
+  cauldronIngredients: IIngredient[];
+  shelfStock: ShelfStock;
+  status: 'playing' | 'paused';
 }

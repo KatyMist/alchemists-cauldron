@@ -5,6 +5,7 @@ import type {
   IDifficultySettings,
   IGameState,
   IIngredient,
+  ISaveData,
 } from '../types/game';
 import { INGREDIENTS } from '../data/ingredients';
 import { checkBrew } from '../logic/brew-check';
@@ -137,4 +138,19 @@ export function brewPotion(
   }
 
   return { state: nextState, isSuccess };
+}
+
+export function restoreGameState(save: ISaveData): IGameState {
+  return {
+    status: 'paused',
+    difficulty: save.difficulty,
+    score: save.score,
+    timeLeft: save.timeLeft,
+    endTime: null,
+    lives: save.lives,
+    activeRecipe: save.activeRecipe,
+    cauldronIngredients: save.cauldronIngredients,
+    shelfStock: save.shelfStock,
+    gameOverReason: null,
+  };
 }

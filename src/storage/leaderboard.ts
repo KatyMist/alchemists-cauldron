@@ -1,7 +1,13 @@
-import type { ILeaderboardEntry } from '../types/game';
+import type { Difficulty, ILeaderboardEntry } from '../types/game';
+import { isDifficulty } from '../data/difficulty';
+import { readJson, removeKey, writeJson } from './storage';
 
-const STORAGE_KEY = 'alchemists-cauldron:leaderboard';
+const STORAGE_PREFIX = 'alchemists-cauldron:leaderboard:';
 const MAX_ENTRIES = 10;
+
+function getKey(difficulty: Difficulty): string {
+  return `${STORAGE_PREFIX}${difficulty}`;
+}
 
 function isLeaderboardEntry(value: unknown): value is ILeaderboardEntry {
   if (typeof value !== 'object' || value === null) {
@@ -15,7 +21,8 @@ function isLeaderboardEntry(value: unknown): value is ILeaderboardEntry {
     typeof entry.score === 'number' &&
     Number.isFinite(entry.score) &&
     typeof entry.date === 'number' &&
-    Number.isFinite(entry.date)
+    Number.isFinite(entry.date) &&
+    isDifficulty(entry.difficulty)
   );
 }
 
@@ -25,56 +32,40 @@ export function sortLeaderboard(entries: readonly ILeaderboardEntry[]): ILeaderb
   );
 }
 
-export function loadLeaderboard(): ILeaderboardEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+export function loadLeaderboard(difficulty: Difficulty): ILeaderboardEntry[] {
+  const parsed = readJson(getKey(difficulty));
 
-    if (raw === null) {
-      return [];
-    }
-
-    const parsed: unknown = JSON.parse(raw);
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return sortLeaderboard(parsed.filter(isLeaderboardEntry)).slice(0, MAX_ENTRIES);
-  } catch {
+  if (!Array.isArray(parsed)) {
     return [];
   }
+
+  const entries = parsed
+    .filter(isLeaderboardEntry)
+    .filter((entry) => entry.difficulty === difficulty);
+
+  return sortLeaderboard(entries).slice(0, MAX_ENTRIES);
 }
 
-function saveLeaderboard(entries: readonly ILeaderboardEntry[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  } catch {
-    // Storage can be full or disabled: the game keeps working without saving.
-  }
-}
-
-export function isTopScore(score: number): boolean {
+export function isTopScore(score: number, difficulty: Difficulty): boolean {
   if (score <= 0) {
     return false;
   }
 
-  const entries = loadLeaderboard();
-  const lastEntry = entries[MAX_ENTRIES - 1];
+  const lastEntry = loadLeaderboard(difficulty)[MAX_ENTRIES - 1];
 
   return lastEntry === undefined || score > lastEntry.score;
 }
 
 export function addLeaderboardEntry(entry: ILeaderboardEntry): number {
-  const entries = sortLeaderboard([...loadLeaderboard(), entry]).slice(0, MAX_ENTRIES);
-  saveLeaderboard(entries);
+  const entries = sortLeaderboard([...loadLeaderboard(entry.difficulty), entry]).slice(
+    0,
+    MAX_ENTRIES,
+  );
+  writeJson(getKey(entry.difficulty), entries);
 
   return entries.indexOf(entry) + 1;
 }
 
-export function clearLeaderboard(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Ignore storage errors: there is nothing to clear.
-  }
+export function clearLeaderboard(difficulty: Difficulty): void {
+  removeKey(getKey(difficulty));
 }
