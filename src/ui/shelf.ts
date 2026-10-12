@@ -1,80 +1,89 @@
 import type { IIngredient, ShelfStock } from '../types/game';
 import { getStock } from '../logic/stock';
 import { createElement } from './dom';
-import { formatValue } from './format';
 import { createBottle } from './icons';
 
-interface IShelfOptions {
+export interface IShelfHandlers {
+  onAdd: (ingredientId: string) => void;
+  onShowTooltip: (card: HTMLElement, ingredient: IIngredient) => void;
+  onHideTooltip: () => void;
+}
+
+interface IShelfOptions extends IShelfHandlers {
   ingredients: readonly IIngredient[];
   stock: ShelfStock;
   isBlocked: boolean;
-  onAdd: (ingredientId: string) => void;
 }
 
-function createValues(ingredient: IIngredient): HTMLSpanElement {
-  const values = createElement('span', 'shelf-card__values');
-  const chips: readonly [string, string, string, number][] = [
-    ['T', 'temperature', 'Temperature', ingredient.temperature],
-    ['D', 'density', 'Density', ingredient.density],
-    ['MP', 'magic', 'Magic Power', ingredient.magicPower],
-  ];
+export const DRAG_DATA_TYPE = 'text/plain';
 
-  chips.forEach(([short, modifier, full, value]) => {
-    const chip = createElement('span', `chip chip--${modifier}`, `${short}${formatValue(value)}`);
-    chip.title = `${full}: ${formatValue(value)}`;
-    values.append(chip);
-  });
-
-  return values;
+function createEmptyCard(ingredient: IIngredient): HTMLButtonElement {
+  const card = createElement('button', `shelf-card shelf-card--empty ingredient--${ingredient.id}`);
+  card.type = 'button';
+  card.dataset.id = ingredient.id;
+  card.disabled = true;
+  card.tabIndex = -1;
+  card.draggable = false;
+  card.setAttribute('aria-label', `${ingredient.name}: out of stock`);
+  card.append(
+    createElement('span', 'shelf-card__bottle'),
+    createElement('span', 'shelf-card__info'),
+    createElement('span', 'shelf-card__stock', '0'),
+  );
+  return card;
 }
 
 function createShelfCard(
   ingredient: IIngredient,
   portions: number,
   isBlocked: boolean,
-  onAdd: (ingredientId: string) => void,
+  handlers: IShelfHandlers,
 ): HTMLButtonElement {
-  const card = createElement('button', `shelf-card ingredient--${ingredient.id}`);
-  card.type = 'button';
-  card.dataset.id = ingredient.id;
-
-  const badge = createElement('span', 'shelf-card__stock', String(portions));
-
   if (portions <= 0) {
-    card.classList.add('shelf-card--empty');
-    card.disabled = true;
-    card.tabIndex = -1;
-    card.setAttribute('aria-label', `${ingredient.name}: out of stock`);
-    card.append(
-      createElement('span', 'shelf-card__bottle'),
-      createElement('span', 'shelf-card__info'),
-      badge,
-    );
-    return card;
+    return createEmptyCard(ingredient);
   }
 
-  const bottle = createBottle(ingredient.icon, 'shelf-card__bottle');
-
+  const card = createElement('button', `shelf-card ingredient--${ingredient.id}`);
   const info = createElement('span', 'shelf-card__info');
-  info.append(createElement('span', 'shelf-card__name', ingredient.name), createValues(ingredient));
+  info.append(createElement('span', 'shelf-card__name', ingredient.name));
 
+  card.type = 'button';
+  card.dataset.id = ingredient.id;
   card.disabled = isBlocked;
+  card.draggable = !isBlocked;
   card.setAttribute('aria-label', `Add ${ingredient.name}, ${String(portions)} left`);
-  card.append(bottle, info, badge);
+  card.append(
+    createBottle(ingredient.icon, 'shelf-card__bottle'),
+    info,
+    createElement('span', 'shelf-card__stock', String(portions)),
+  );
+
   card.addEventListener('click', () => {
-    onAdd(ingredient.id);
+    handlers.onAdd(ingredient.id);
   });
+  card.addEventListener('dragstart', (event) => {
+    event.dataTransfer?.setData(DRAG_DATA_TYPE, ingredient.id);
+    handlers.onHideTooltip();
+  });
+  card.addEventListener('mouseenter', () => {
+    handlers.onShowTooltip(card, ingredient);
+  });
+  card.addEventListener('focus', () => {
+    handlers.onShowTooltip(card, ingredient);
+  });
+  card.addEventListener('mouseleave', handlers.onHideTooltip);
+  card.addEventListener('blur', handlers.onHideTooltip);
 
   return card;
 }
 
 export function renderShelf(container: HTMLElement, options: IShelfOptions): void {
-  const { ingredients, stock, isBlocked, onAdd } = options;
+  const { ingredients, stock, isBlocked } = options;
 
   container.classList.toggle('shelf--blocked', isBlocked);
   container.replaceChildren(
     ...ingredients.map((ingredient) =>
-      createShelfCard(ingredient, getStock(stock, ingredient.id), isBlocked, onAdd),
+      createShelfCard(ingredient, getStock(stock, ingredient.id), isBlocked, options),
     ),
   );
 }
