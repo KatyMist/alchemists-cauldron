@@ -5,14 +5,7 @@ export type GameStatus = 'menu' | 'playing' | 'paused' | 'game-over';
 export type GameOverReason = 'time' | 'lives' | 'ingredients';
 
 export type IngredientIcon =
-  | 'drop'
-  | 'sparkle'
-  | 'snowflake'
-  | 'root'
-  | 'flask'
-  | 'void'
-  | 'feather'
-  | 'slime';
+  'drop' | 'sparkle' | 'snowflake' | 'root' | 'flask' | 'void' | 'feather' | 'slime';
 
 export interface ICauldronValues {
   temperature: number;
