@@ -2825,3 +2825,43 @@ button {
 .leaderboard__difficulty {
   color: var(--text-muted);
 }
+
+/* Shelf rows scale with their own height (4, 6 or 8 ingredients) */
+@media (min-width: 1101px) and (min-height: 640px) {
+  .shelf-card {
+    container-type: size;
+    padding-top: 2px;
+  }
+
+  .shelf-card__bottle,
+  .shelf-card--empty .shelf-card__bottle {
+    width: auto;
+    height: min(71px, 94cqh);
+    aspect-ratio: 60 / 71;
+  }
+
+  .shelf-card--empty .shelf-card__bottle {
+    height: min(60px, 80cqh);
+    aspect-ratio: 1;
+    align-self: center;
+  }
+
+  .shelf-card__info {
+    gap: min(6px, 5cqh);
+  }
+
+  .shelf-card__name {
+    font-size: min(1.2rem, 4.6cqi, 26cqh);
+  }
+
+  .chip {
+    font-size: min(0.85rem, 3.3cqi, 18cqh);
+    line-height: 1.25;
+  }
+
+  .shelf-card__stock {
+    width: min(40px, 62cqh);
+    height: min(40px, 62cqh);
+    font-size: min(1.2rem, 30cqh);
+  }
+}
