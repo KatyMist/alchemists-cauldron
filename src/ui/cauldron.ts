@@ -5,6 +5,7 @@ import { createIcon } from './icons';
 export function renderCauldron(
   cauldron: HTMLElement,
   list: HTMLElement,
+  floating: HTMLElement,
   ingredients: readonly IIngredient[],
   capacity: number,
 ): void {
@@ -29,5 +30,14 @@ export function renderCauldron(
   }
 
   list.replaceChildren(...items);
+  floating.replaceChildren(
+    ...ingredients.map((ingredient, index) => {
+      const icon = createIcon(
+        ingredient.icon,
+        `cauldron__floater cauldron__floater--${String(index % 5)} ingredient--${ingredient.id}`,
+      );
+      return icon;
+    }),
+  );
   cauldron.classList.toggle('cauldron--empty', ingredients.length === 0);
 }
