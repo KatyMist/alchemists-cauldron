@@ -1,13 +1,23 @@
+<div align="center">
+
 # 🧪 Alchemist's Cauldron
 
 ![Skills](https://skillicons.dev/icons?i=ts,vite,html,css)
 
 **EN** | [RU](#ru)
 
-A browser puzzle game: mix ingredients from the shelf, move three cauldron values (Temperature, Density, Magic Power) into the recipe target ranges and brew potions before time or lives run out.
+A browser puzzle game: mix ingredients, hit three target ranges<br />
+and brew potions before time or lives run out.
 
-- **Play:** https://katymist.github.io/alchemists-cauldron/
-- **Task:** [RS School qualifying stage — Alchemist's Cauldron](https://github.com/rolling-scopes-school/qualifying-stage/blob/main/tasks/game-alchemists-cauldron/README.md)
+**[▶ Play the game](https://katymist.github.io/alchemists-cauldron/)** · [Task](https://github.com/rolling-scopes-school/qualifying-stage/blob/main/tasks/game-alchemists-cauldron/README.md)
+
+<br />
+
+<a href="https://katymist.github.io/alchemists-cauldron/">
+  <img width="100%" alt="Alchemist's Cauldron on desktop and mobile" src="https://github.com/user-attachments/assets/a241142a-d46c-4ef0-99b4-d9d29040b0d3" />
+</a>
+
+</div>
 
 ## Implemented
 
